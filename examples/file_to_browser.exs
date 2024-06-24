@@ -13,7 +13,12 @@ Mix.install([
   :membrane_file_plugin,
   :membrane_realtimer_plugin,
   :membrane_matroska_plugin,
-  :membrane_opus_plugin
+  :membrane_opus_plugin,
+  :membrane_h26x_plugin,
+  {:membrane_rtp_h264_plugin,
+   github: "membraneframework/membrane_rtp_h264_plugin",
+   branch: "fix_stap_a_marker_bit",
+   override: true}
 ])
 
 defmodule Example.Pipeline do
@@ -25,6 +30,7 @@ defmodule Example.Pipeline do
   def handle_init(_ctx, opts) do
     spec =
       child(%Membrane.File.Source{location: "#{__DIR__}/assets/bbb_vp8.mkv"})
+      # child(%Membrane.File.Source{location: "/Users/matheksm/bbb/bun33s.mkv"})
       |> child(:demuxer, Membrane.Matroska.Demuxer)
 
     {[spec: spec], %{audio_track: nil, video_track: nil, port: opts[:port]}}
@@ -41,10 +47,11 @@ defmodule Example.Pipeline do
 
     if state.audio_track && state.video_track do
       spec = [
-        child(:webrtc, %WebRTC.Sink{signaling: {:websocket, port: state.port}}),
+        child(:webrtc, %WebRTC.Sink{signaling: {:websocket, port: state.port}, video_codec: :vp8}),
         get_child(:demuxer)
         |> via_out(Pad.ref(:output, state.video_track))
         |> child({:realtimer, :video_track}, Membrane.Realtimer)
+        # |> child(%Membrane.H264.Parser{output_stream_structure: :annexb, output_alignment: :nalu})
         |> via_in(Pad.ref(:input, :video_track), options: [kind: :video])
         |> get_child(:webrtc),
         get_child(:demuxer)

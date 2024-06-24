@@ -87,6 +87,7 @@ defmodule Membrane.WebRTC.ExWebRTCSink do
           :audio -> ExWebRTCUtils.codec_clock_rate(:opus)
           :video -> ExWebRTCUtils.codec_clock_rate(state.video_codec)
         end,
+      packet_num: if(track.kind == :video, do: 0),
       seq_num: Enum.random(0..@max_rtp_seq_num)
     }
 
@@ -210,6 +211,16 @@ defmodule Membrane.WebRTC.ExWebRTCSink do
   defp send_buffer(pad, buffer, state) do
     {id, params} = state.input_tracks[pad]
 
+    packet_num = params[:packet_num]
+
+    params =
+      if packet_num != nil and packet_num < 100 do
+        # Process.sleep(2)
+        %{params | packet_num: packet_num + 1}
+      else
+        params
+      end
+
     timestamp =
       Membrane.Time.divide_by_timebase(
         buffer.pts,
@@ -226,6 +237,7 @@ defmodule Membrane.WebRTC.ExWebRTCSink do
 
     PeerConnection.send_rtp(state.pc, id, packet)
     seq_num = rem(params.seq_num + 1, @max_rtp_seq_num + 1)
-    put_in(state.input_tracks[pad], {id, %{params | seq_num: seq_num}})
+    params = %{params | seq_num: seq_num}
+    put_in(state.input_tracks[pad], {id, params})
   end
 end
